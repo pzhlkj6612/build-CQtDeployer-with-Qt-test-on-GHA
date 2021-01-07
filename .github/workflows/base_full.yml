@@ -100,8 +100,8 @@ jobs:
           )
           If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
           $shortCommitId = Get-Content -Path $tempFile
-          Write-Host "shortCommitId = $shortCommitId"
-          Write-Host "::set-output name=shortCommitId::$shortCommitId"
+          Write-Output "shortCommitId = $shortCommitId"
+          Write-Output "::set-output name=shortCommitId::$shortCommitId"
 
           Pop-Location
 
@@ -159,9 +159,9 @@ jobs:
 
           $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "${Env:\Qt5_Dir}\..\..\Tools\mingw810_64\bin\mingw32-make.exe" -ArgumentList @('test')
           # We need buildLog.log, so don't stop here.
-          Write-Host "::set-output name=testExitCode::$($p.ExitCode.toString())"
+          Write-Output "::set-output name=testExitCode::$($p.ExitCode.toString())"
 
-          Write-Host '=== ${{ github.workspace }}/CQtDeployer/buildLog.log ==='
+          Write-Output '=== ${{ github.workspace }}/CQtDeployer/buildLog.log ==='
           Get-Content -LiteralPath "${{ github.workspace }}/CQtDeployer/buildLog.log"
 
           Pop-Location
