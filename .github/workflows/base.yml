@@ -133,7 +133,7 @@ jobs:
       - name: Upload buildLog.log
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.qt_arch }}-${{ matrix.branch_name }}-buildLog.log
+          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.branch_name }}-buildLog.log
           path: ${{ github.workspace }}/CQtDeployer/buildLog.log
 
       - run: |

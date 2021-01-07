@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         qt_ver: [5.15.0, 5.15.1, 5.15.2]
-        branch_name: [master, v1.4, v1.5, task_481]
+        branch_name: [master, v1.5, task_481]
         # https://github.com/QuasarApp/CQtDeployer/issues/481#issuecomment-755474976
 
     steps:
@@ -30,13 +30,6 @@ jobs:
       # To get '.github/workflows/qt-installer-noninteractive.qs'
       - name: checkout code
         uses: actions/checkout@v2
-
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v1
-        with:
-          path: ${{ github.workspace }}/../Qt
-          key: ${{ runner.os }}-QtCache-${{ matrix.qt_ver }}-${{ matrix.qt_arch }}-${{ matrix.branch_name }}
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v2
@@ -48,7 +41,6 @@ jobs:
           tools: "tools_ifw,4.0.1-202012091044,qt.tools.ifw.40 tools_mingw,8.1.0-1-202004170606,qt.tools.win64_mingw810"
           aqtversion: "==0.10.1"
           py7zrversion: "==0.11.1"
-          cached: ${{ steps.cache-qt.outputs.cache-hit }}
 
       - name: Inspect env and Qt
         run: |
@@ -62,8 +54,8 @@ jobs:
 
           Get-ChildItem -Recurse -Path "${Env:\Qt5_Dir}\..\..\"
 
-      - name: Configure MinGW
-        if: ${{ false }} # Why qtenv2.bat is disappeared after restoring Qt from cache??
+      - name: Configure MinGW (not run)
+        if: ${{ false }} # Why qtenv2.bat disappeared after restoring Qt from cache??
         run: |
           # ..\Qt\5.15.0\mingw81_64\bin\qtenv2.bat
           Push-Location -Path "${Env:\Qt5_Dir}\bin"
@@ -167,7 +159,7 @@ jobs:
       - name: Upload buildLog.log
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.qt_arch }}-${{ matrix.branch_name }}-buildLog.log
+          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.branch_name }}-buildLog.log
           path: ${{ github.workspace }}/CQtDeployer/buildLog.log
 
       - run: |
