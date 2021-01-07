@@ -76,6 +76,7 @@ jobs:
           Get-ChildItem Env:\ | Format-List
 
       - name: clone QuasarApp/CQtDeployer@${{ matrix.branch_name }}
+        id: clone_CQtDeployer
         run: |
           $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "git" -ArgumentList @(
             'clone',
@@ -92,6 +93,15 @@ jobs:
             'log', '-n1'
           )
           If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          $tempFile = New-TemporaryFile
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "git" -RedirectStandardOutput $tempFile -ArgumentList @(
+            'rev-parse', '--short', 'HEAD'
+          )
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+          $shortCommitId = Get-Content -Path $tempFile
+          Write-Host "shortCommitId = $shortCommitId"
+          Write-Host "::set-output name=shortCommitId::$shortCommitId"
 
           Pop-Location
 
@@ -159,7 +169,7 @@ jobs:
       - name: Upload buildLog.log
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.branch_name }}-buildLog.log
+          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.branch_name }}-${{ steps.clone_CQtDeployer.outputs.shortCommitId }}-buildLog.log
           path: ${{ github.workspace }}/CQtDeployer/buildLog.log
 
       - run: |
