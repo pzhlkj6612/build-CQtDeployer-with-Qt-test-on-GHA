@@ -1,0 +1,175 @@
+name: base full
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    env:
+      CQTDEPLOYER_VERSION: 1.4.7
+      CQTDEPLOYER_INSTALLATION_DIR: ${{ github.workspace }}/CQtDeployer_installation
+      QT_INSTALLER_NONINTERACTIVE_SCRIPT_PATH: ${{ github.workspace }}/.github/workflows/qt-installer-noninteractive.qs
+      DOWNLOADED_FILE_DIR: ${{ github.workspace }}
+    runs-on: windows-latest
+    continue-on-error: true
+    strategy:
+      matrix:
+        qt_ver: [5.15.0, 5.15.1, 5.15.2]
+        branch_name: [master, v1.4, v1.5, task_481]
+        # https://github.com/QuasarApp/CQtDeployer/issues/481#issuecomment-755474976
+
+    steps:
+      - name: Don't direct call 'mingw32-make.exe'
+        run: Get-Command -Name 'mingw32-make.exe' | Format-List
+
+      # To get '.github/workflows/qt-installer-noninteractive.qs'
+      - name: checkout code
+        uses: actions/checkout@v2
+
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v1
+        with:
+          path: ${{ github.workspace }}/../Qt
+          key: ${{ runner.os }}-QtCache-${{ matrix.qt_ver }}-${{ matrix.qt_arch }}-${{ matrix.branch_name }}
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v2
+        with:
+          version: ${{ matrix.qt_ver }}
+          host: windows
+          target: desktop
+          arch: win64_mingw81
+          tools: "tools_ifw,4.0.1-202012091044,qt.tools.ifw.40 tools_mingw,8.1.0-1-202004170606,qt.tools.win64_mingw810"
+          aqtversion: "==0.10.1"
+          py7zrversion: "==0.11.1"
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+
+      - name: Inspect env and Qt
+        run: |
+          Get-ChildItem Env:\ | Format-List
+
+          Get-Command -Name 'qmake.exe' | Format-List
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "qmake.exe" -ArgumentList @('-query');
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Get-ItemProperty -Path "${Env:\Qt5_Dir}\..\..\Tools\mingw810_64\bin\mingw32-make.exe"
+
+          Get-ChildItem -Recurse -Path "${Env:\Qt5_Dir}\..\..\"
+
+      - name: Configure MinGW
+        if: ${{ false }} # Why qtenv2.bat is disappeared after restoring Qt from cache??
+        run: |
+          # ..\Qt\5.15.0\mingw81_64\bin\qtenv2.bat
+          Push-Location -Path "${Env:\Qt5_Dir}\bin"
+          & cmd.exe @("/c", "qtenv2.bat & set") | `
+              ForEach-Object {
+              If ($_ -match "=") {
+                  $v = $_ -Split "=", 2
+                  $envName = "$($v[0])"
+                  $envValue = "$($v[1])"
+                  Set-Item -Force -Path "Env:\$envName" -Value "$envValue"
+                  # https://github.blog/changelog/2020-10-01-github-actions-deprecating-set-env-and-add-path-commands/
+                  Write-Output "$envName=$envValue" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              }
+          }
+          If ($LastExitCode -ne 0) { Exit $LastExitCode }
+          Pop-Location
+
+          Get-ChildItem Env:\ | Format-List
+
+      - name: clone QuasarApp/CQtDeployer@${{ matrix.branch_name }}
+        run: |
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "git" -ArgumentList @(
+            'clone',
+            '--recurse-submodules',
+            '--branch', '${{ matrix.branch_name }}'
+            '--single-branch',
+            'https://github.com/QuasarApp/CQtDeployer.git'
+          )
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Push-Location -Path CQtDeployer\
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "git" -ArgumentList @(
+            'log', '-n1'
+          )
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Pop-Location
+
+      - name: Download CQtDeployer
+        uses: suisei-cn/actions-download-file@v1
+        id: downloadCqt
+        with:
+          url: "https://github.com/QuasarApp/CQtDeployer/releases/download/${{ env.CQTDEPLOYER_VERSION }}/WindowsOfflineInstaller.exe"
+          target: ${{ github.workspace }}
+
+      - name: Install CQtDeployer
+        run: |
+          $installer_path = "${Env:\DOWNLOADED_FILE_DIR}\${{ steps.downloadCqt.outputs.filename }}"
+          Get-ItemProperty -Path "$installer_path"
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "$installer_path" -ArgumentList @(
+            '--script', "${Env:\QT_INSTALLER_NONINTERACTIVE_SCRIPT_PATH}",
+            '--verbose',
+            "targetDirectory=`"${Env:\CQTDEPLOYER_INSTALLATION_DIR}`""
+          )
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+          Get-ItemProperty -Path "${Env:\CQTDEPLOYER_INSTALLATION_DIR}\1.4\bin\cqtdeployer.exe"
+
+          Push-Location -Path "${Env:\CQTDEPLOYER_INSTALLATION_DIR}\1.4\lib"
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath '..\bin\cqtdeployer.exe'
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Pop-Location
+
+      - name: qmake CQtDeployer
+        env:
+          cqtdeployer: ${{ env.CQTDEPLOYER_INSTALLATION_DIR }}/1.4/cqtdeployer.bat # Will be saved in Makefile by qmake
+        run: |
+          Push-Location -Path CQtDeployer\
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "${Env:\Qt5_Dir}\bin\qmake.exe" -ArgumentList @('-recursive')
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Pop-Location
+
+      - name: make CQtDeployer
+        run: |
+          Push-Location -Path CQtDeployer\
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "${Env:\Qt5_Dir}\..\..\Tools\mingw810_64\bin\mingw32-make.exe" -ArgumentList @('-j2')
+          If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
+
+          Pop-Location
+
+      - name: test CQtDeployer
+        id: tst_CQtDeployer
+        run: |
+          Push-Location -Path CQtDeployer\
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "${Env:\Qt5_Dir}\..\..\Tools\mingw810_64\bin\mingw32-make.exe" -ArgumentList @('test')
+          # We need buildLog.log, so don't stop here.
+          Write-Host "::set-output name=testExitCode::$($p.ExitCode.toString())"
+
+          Write-Host '=== ${{ github.workspace }}/CQtDeployer/buildLog.log ==='
+          Get-Content -LiteralPath "${{ github.workspace }}/CQtDeployer/buildLog.log"
+
+          Pop-Location
+
+      - name: Upload buildLog.log
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ runner.os }}-CQtDeployer-${{ matrix.qt_ver }}-${{ matrix.qt_arch }}-${{ matrix.branch_name }}-buildLog.log
+          path: ${{ github.workspace }}/CQtDeployer/buildLog.log
+
+      - run: |
+          $exitCode = ${{ steps.tst_CQtDeployer.outputs.testExitCode }}
+          If ($exitCode -ne 0) { Exit $exitCode }
