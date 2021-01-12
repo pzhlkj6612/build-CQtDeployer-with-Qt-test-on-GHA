@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         qt_ver: [5.15.0, 5.15.1, 5.15.2]
-        branch_name: [master, v1.5, task_481]
+        branch_name: [master]
         # https://github.com/QuasarApp/CQtDeployer/issues/481#issuecomment-755474976
 
     steps:
