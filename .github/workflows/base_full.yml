@@ -1,10 +1,10 @@
-name: base full
+name: getMSVC_some_paths_cannot_handled
 
 on:
   push:
-    branches: [main]
+    branches: [getMSVC_some_paths_cannot_handled]
   pull_request:
-    branches: [main]
+    branches: [getMSVC_some_paths_cannot_handled]
 
   workflow_dispatch:
 
@@ -15,6 +15,8 @@ jobs:
       CQTDEPLOYER_INSTALLATION_DIR: ${{ github.workspace }}/CQtDeployer_installation
       QT_INSTALLER_NONINTERACTIVE_SCRIPT_PATH: ${{ github.workspace }}/.github/workflows/qt-installer-noninteractive.qs
       DOWNLOADED_FILE_DIR: ${{ github.workspace }}
+      DEPLOY_OUTPUT_PATH_OLD: ${{ github.workspace }}/deploy_output_path_old
+      DEPLOY_OUTPUT_PATH_NEW: ${{ github.workspace }}/deploy_output_path_new
     runs-on: windows-latest
     continue-on-error: true
     strategy:
@@ -175,3 +177,45 @@ jobs:
       - run: |
           $exitCode = ${{ steps.tst_CQtDeployer.outputs.testExitCode }}
           If ($exitCode -ne 0) { Exit $exitCode }
+
+      - name: How many files do I have?
+        run: |
+          Get-ChildItem -Path ${{ github.workspace }} -Recurse
+
+      - name: deploy CQtDeployer with CQtDeployer ${{ env.CQTDEPLOYER_VERSION }}
+        run: |
+          Push-Location -Path "${Env:\CQTDEPLOYER_INSTALLATION_DIR}\1.4\lib"
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath '..\bin\cqtdeployer.exe' -ArgumentList @(
+            '-bin', "${{ github.workspace }}\CQtDeployer\CQtDeployer\build\release\cqtdeployer.exe",
+            '-qmake', "${Env:\Qt5_DIR}\bin\qmake.exe",
+            '-libDir', "${{ github.workspace }}\CQtDeployer",
+            '-recursiveDepth', '5',
+            '-targetDir', "${Env:\DEPLOY_OUTPUT_PATH_OLD}",
+            '-verbose', '3'
+          )
+          If ($p.ExitCode -ne 0) { throw "Exit code is $($p.ExitCode.toString())" }
+
+          Pop-Location
+
+          Get-ChildItem -Recurse -Path "${Env:\DEPLOY_OUTPUT_PATH_OLD}"
+
+      - name: deploy CQtDeployer with the newly built CQtDeployer
+        run: |
+          Push-Location -Path "${Env:\DEPLOY_OUTPUT_PATH_OLD}"
+
+          Get-ChildItem -Recurse -Path '.'
+
+          $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath '.\cqtdeployer.exe' -ArgumentList @(
+            '-bin', "${{ github.workspace }}\CQtDeployer\CQtDeployer\build\release\cqtdeployer.exe",
+            '-qmake', "${Env:\Qt5_DIR}\bin\qmake.exe",
+            '-libDir', "${{ github.workspace }}\CQtDeployer",
+            '-recursiveDepth', '5',
+            '-targetDir', "${Env:\DEPLOY_OUTPUT_PATH_NEW}",
+            '-verbose', '3'
+          )
+          If ($p.ExitCode -ne 0) { throw "Exit code is $($p.ExitCode.toString())" }
+
+          Pop-Location
+
+          Get-ChildItem -Recurse -Path "${Env:\DEPLOY_OUTPUT_PATH_NEW}"
