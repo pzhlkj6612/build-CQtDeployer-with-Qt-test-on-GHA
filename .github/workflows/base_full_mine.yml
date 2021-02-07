@@ -1,4 +1,4 @@
-name: base full
+name: base full for my fork
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       matrix:
         arch: ["32", "64"]
         qt_ver: [5.15.0, 5.15.1, 5.15.2]
-        branch_name: [v1.5]
+        branch_name: [use_qt-skipEMptyParts_in_qt-514-or-newer]
 
     steps:
       - name: Don't direct call 'mingw32-make.exe'
@@ -80,7 +80,7 @@ jobs:
 
           Get-ChildItem Env:\ | Format-List
 
-      - name: clone QuasarApp/CQtDeployer@${{ matrix.branch_name }}
+      - name: clone pzhlkj6612/CQtDeployer@${{ matrix.branch_name }}
         id: clone_CQtDeployer
         run: |
           $p = Start-Process -Wait -NoNewWindow -PassThru -FilePath "git" -ArgumentList @(
@@ -88,7 +88,7 @@ jobs:
             '--recurse-submodules',
             '--branch', '${{ matrix.branch_name }}'
             '--single-branch',
-            'https://github.com/QuasarApp/CQtDeployer.git'
+            'https://github.com/pzhlkj6612/CQtDeployer.git'
           )
           If ($p.ExitCode -ne 0) { Exit $p.ExitCode }
 
